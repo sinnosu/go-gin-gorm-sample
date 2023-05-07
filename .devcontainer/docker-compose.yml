@@ -1,0 +1,63 @@
+version: '3.8'
+services:
+  app:
+    user: vscode
+
+    # Go用のDockerfileがあるpath、dockerfile名を指示
+    build:
+      context: ../docker/golang
+      dockerfile: Dockerfile
+    env_file:
+      - ../docker/mysql/.env
+    # dbコンテナが起動した後に起動するように指示
+    depends_on:
+      - db
+
+    # プロジェクトフォルダのpathを指定して、workspace（開発用コンテナ内の作業場所）にマウント
+    volumes:
+      - ../:/workspace:cached
+
+    # Uncomment the next four lines if you will use a ptrace-based debugger like C++, Go, and Rust.
+    # 何用かは分からないですがGoで開発する際のデバッガーとして必要らしいです
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+
+    # appコンテナへのポートフォワード指定
+    ports:
+      - 8080:8080
+    # コンテナ切断をしないように指示
+    command:
+      /bin/sh -c "while sleep 1000; do :; done"
+      /bin/bash
+
+  db:
+    container_name: db
+    
+    # MySQL用のDockerfile指定
+    build: 
+      context: ../docker/mysql
+      dockerfile: Dockerfile
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    platform: linux/x86_64
+
+    # envファイルのpath
+    env_file:
+      - ../docker/mysql/.env
+    # データ永続化
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../docker/mysql/conf/my.cnf:/etc/mysql/conf.d/my.cnf
+      - ./initdb.d:/docker-entrypoint-initdb.d
+    ports:
+      - 13306:3306
+    # コンテナ間の接続を可能にするためのネットワーク設定
+    networks:
+      - default
+
+volumes:
+  mysql_data:
+    driver: local
+networks:
+  default:
